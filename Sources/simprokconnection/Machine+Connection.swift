@@ -7,120 +7,109 @@ public extension Machine {
     private class Holder {}
     
     private static func cancelGet() -> Outline<ConnectionOutput, ConnectionInput, ConnectionInput, ConnectionOutput> {
-        Outline.create { trigger in
-            switch trigger {
-            case .ext(.willCancelGetting):
-                return OutlineTransition(
-                    Outline.create { trigger in
-                        switch trigger {
-                        case .int(.didCancelGetting):
-                            return OutlineTransition(
-                                .finale(),
-                                effects: .ext(.didCancelGetting)
-                            )
-                        default:
-                            return nil
-                        }
-                    },
-                    effects: .int(.willCancelGetting)
-                )
-            default:
-                return nil
+        OutlineBuilder()
+            .when { trigger in
+                switch trigger {
+                case .ext(.willCancelGetting):
+                    return [.int(.willCancelGetting)]
+                default:
+                    return nil
+                }
             }
-        }
+            .when { trigger in
+                switch trigger {
+                case .int(.didCancelGetting):
+                    return [.ext(.didCancelGetting)]
+                default:
+                    return nil
+                }
+            }
+            .build(.finale())
     }
     
     private static func launchGet() -> Outline<ConnectionOutput, ConnectionInput, ConnectionInput, ConnectionOutput> {
-        Outline.create { trigger in
-            switch trigger {
-            case .ext(.willLaunchGetting):
-                return OutlineTransition(
-                    Outline.create { trigger in
-                        switch trigger {
-                        case .int(.didLaunchGetting):
-                            return OutlineTransition(
-                                Outline.create { trigger in
-                                    switch trigger {
-                                    case .int(.didGetStatus(let status)):
-                                        return OutlineTransition(
-                                            .finale(),
-                                            effects: .ext(.didGetStatus(status))
-                                        )
-                                    default:
-                                        return nil
-                                    }
-                                },
-                                effects: .ext(.didLaunchGetting)
-                            )
-                        default:
-                            return nil
-                        }
-                    }.switchOnTransition(to: cancelGet()),
-                    effects: .int(.willLaunchGetting)
-                )
-            default:
-                return nil
+        OutlineBuilder()
+            .when { trigger in
+                switch trigger {
+                case .ext(.willLaunchGetting):
+                    return [ .int(.willLaunchGetting)]
+                default:
+                    return nil
+                }
             }
-        }
+            .handle { state in
+                state.switchOnTransition(to: cancelGet())
+            }
+            .when { trigger in
+                switch trigger {
+                case .int(.didLaunchGetting):
+                    return [.ext(.didLaunchGetting)]
+                default:
+                    return nil
+                }
+            }
+            .when { trigger in
+                switch trigger {
+                case .int(.didGetStatus(let status)):
+                    return [.ext(.didGetStatus(status))]
+                default:
+                    return nil
+                }
+            }
+            .build(.finale())
     }
     
     private static func cancelListening() -> Outline<ConnectionOutput, ConnectionInput, ConnectionInput, ConnectionOutput> {
-        Outline.create { trigger in
-            switch trigger {
-            case .ext(.willStopListening):
-                return OutlineTransition(
-                    Outline.create { trigger in
-                        switch trigger {
-                        case .int(.didStopListening):
-                            return OutlineTransition(
-                                .finale(),
-                                effects: .ext(.didStopListening)
-                            )
-                        default:
-                            return nil
-                        }
-                    },
-                    effects: .int(.willStopListening)
-                )
-            default:
-                return nil
+        OutlineBuilder()
+            .when { trigger in
+                switch trigger {
+                case .ext(.willStopListening):
+                    return [.int(.willStopListening)]
+                default:
+                    return nil
+                }
             }
-        }
+            .when { trigger in
+                switch trigger {
+                case .int(.didStopListening):
+                    return [.ext(.didStopListening)]
+                default:
+                    return nil
+                }
+            }
+            .build(.finale())
     }
     
     private static func launchListening() -> Outline<ConnectionOutput, ConnectionInput, ConnectionInput, ConnectionOutput> {
-        Outline.create { trigger in
-            switch trigger {
-            case .ext(.willStartListening):
-                return OutlineTransition(
-                    Outline.create { trigger in
-                        switch trigger {
-                        case .int(.didStartListening):
-                            return OutlineTransition(
-                                OutlineBuilder()
-                                    .loop { event in
-                                        switch event {
-                                        case .int(.didReceiveStatus(let status)):
-                                            return .loop([.ext(.didReceiveStatus(status))])
-                                        default:
-                                            return .loop([])
-                                        }
-                                    }
-                                    .then { _ in
-                                        OutlineTransition(.finale())
-                                    },
-                                effects: .ext(.didStartListening)
-                            )
-                        default:
-                            return nil
-                        }
-                    }.switchOnTransition(to: cancelListening()),
-                    effects: .int(.willStartListening)
-                )
-            default:
-                return nil
+        OutlineBuilder()
+            .when { trigger in
+                switch trigger {
+                case .ext(.willStartListening):
+                    return [.int(.willStartListening)]
+                default:
+                    return nil
+                }
             }
-        }
+            .handle { state in
+                state.switchOnTransition(to: cancelListening())
+            }
+            .when { trigger in
+                switch trigger {
+                case .int(.didStartListening):
+                    return [.ext(.didStartListening)]
+                default:
+                    return nil
+                }
+            }
+            .loop { event in
+                switch event {
+                case .int(.didReceiveStatus(let status)):
+                    return (true, [.ext(.didReceiveStatus(status))])
+                default:
+                    return (true, [])
+                }
+            }
+            .build(.finale())
     }
     
     static func connection() -> Machine<Input, Output> where Input == IdData<String, ConnectionInput>, Output == IdData<String, ConnectionOutput> {
